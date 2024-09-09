@@ -8,3 +8,5 @@ The end goal is to have a self-updating model available to view on a Shiny appli
 
 
 Description of Files
+
+park_factors_17_24: obtains all the park factors for each stadium from 2017-2024
