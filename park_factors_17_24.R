@@ -59,4 +59,4 @@ pf$season <- as.integer(pf$season)
 
 
 #save
-saveRDS(pf, "C:/Users/dresi/Documents/all_park_factors.rds")
+saveRDS(pf, "all_park_factors.rds")
