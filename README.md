@@ -14,7 +14,7 @@ MLB_data_excel_file_creation.R: Work in progress script that has gone under a fe
 
 park_factors_17_24.R: obtains all the park factors for each stadium from 2017-2024
 
-all_chadwick_people.R: file of all the necessary players and umpires for this model and potentially future others.
+all_chadwick_people.R: used to obtain the MLBAM and FangraphsID for new players when available
 
 cumulative_stats_for_QS_model:  Creates 5 RDS files
   1) DF for all pitcher game logs from 2017-2024 with various additional cumualtive and 6-game split rolling average stats
