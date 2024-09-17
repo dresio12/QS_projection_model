@@ -50,13 +50,12 @@ team_mapping <- c(
   "Rockies" = "Colorado Rockies"
 )
 
+# Ensure 'season' column is integer
+pf$season <- as.integer(pf$season)
 
 pf$home_team <- team_mapping[pf$home_team]
 
 
-# Ensure 'season' column is integer
-pf$season <- as.integer(pf$season)
-
 
 #save
-saveRDS(pf, "all_park_factors.rds")
+saveRDS(pf, "C:/Users/dresi/Documents/all_park_factors.rds")

@@ -3,7 +3,9 @@ library(tidyverse)
 library(ggplot2)
 library(baseballr)
 library(data.table)
-
+library(rvest)
+library(stringr)
+library(googlesheets4)
 
 #turn off scientific notation
 
@@ -255,7 +257,9 @@ combined_game_info2024 <- rbindlist(c(game_info_list51,
 
 
 # Combine results into a single dataframe
-all_game_info_df <- rbind(combined_game_info2019,
+all_game_info_df <- rbind(combined_game_info2017,
+                          combined_game_info2018,
+                          combined_game_info2019,
                           combined_game_info2020,
                           combined_game_info2021,
                           combined_game_info2022,
@@ -329,16 +333,9 @@ starter_list_df <- starter_list_df |>
     .groups = 'drop'
   )
 
+saveRDS(starter_list_df, "probable_starts.rds")
+
 mlb_master_data <- left_join(mlb_master_data, starter_list_df)
-
-sched <- baseballr::mlb_schedule(2024)
-
-sched <- sched |>
-  select(date, game_date, game_pk, game_type, game_number, series_description,
-         31:34, 37:45, 47:55, 57, 58, 63:70) 
-
-sched <- sched |>
-  filter(game_type != "S" & game_type != "E")
 
 ###
 
@@ -349,31 +346,155 @@ pf <- readRDS("all_park_factors.rds")
 mlb_master_data$season <- as.integer(mlb_master_data$season)
 
 # Perform the left join
-mlb_master_data <- left_join(mlb_master_data, pf, 
+all_data <- left_join(mlb_master_data, pf, 
                              by = c("teams.home.team.name" = "home_team", 
                                     "season"))
 
-saveRDS(mlb_master_data,  "C:/Users/dresi/Documents/mlb_master_data.rds")
+#trim to only necessary columns
+all_data <- all_data |>
+  select(1, 5:7, 16, 26:29, 33, 37:41, 43, 47:51, 53, 54, 58:61,
+         67, 68, 71:76, 88:93, 95, 96)
+
+saveRDS(all_data,  "C:/Users/dresi/Documents/mlb_master_data.rds")
 
 ###
+
+#for some reason 2018 and 2018 didn't load into mlb_master_data
+#this fixes that
+all_data_subset <- all_data %>% 
+  filter(season == '2017' | season == '2018')
+
+get_game_starter <- function(game_pk) {
+  tryCatch({
+    game_starter <- baseballr::get_probables_mlb(game_pk = game_pk)
+    return(game_starter)
+  }, error = function(e) {
+    message("Error retrieving starter for game_pk ", game_pk, ": ", e$message)
+    return(NULL)
+  })
+}
+
+# Initialize an empty list to store starter information
+starter_list <- list()
+
+# Loop through the filtered game_pks
+for (i in seq_along(all_data_subset$game_pk)) {
+  game_pk <- all_data_subset$game_pk[i]
+  
+  # Retrieve the game starter
+  starter_list[[i]] <- get_game_starter(game_pk)
+  
+  # Save progress every 25 results and overwrite existing file
+  if (i %% 25 == 0) {
+    saveRDS(starter_list, "starter_list.rds")
+    message(paste("Saved progress at game", i))
+  }
+}
+
+# Combine results into a single dataframe
+starter_list_df <- rbindlist(starter_list, fill = TRUE)
+
+starter_list_df <- starter_list_df %>%
+  group_by(game_pk, game_date, home_plate_full_name, home_plate_id) %>%
+  summarize(
+    away_starter = first(fullName),
+    id1 = first(id),
+    teams.away.team.name = first(team),
+    teams.away.team.id = first(team_id),
+    home_starter = last(fullName),
+    id2 = last(id),
+    teams.home.team.name = last(team),
+    teams.home.team.id = last(team_id),
+    .groups = 'drop'
+  )
+
+# Join the processed data back to all_data
+all_data <- left_join(all_data, starter_list_df, by = c('game_pk', 
+                                                        "teams.home.team.name",
+                                                        "teams.away.team.name",
+                                                        "teams.home.team.id",
+                                                        "teams.away.team.id"))
+
+# Replace the specific columns only if they are NA in all_data
+all_data <- all_data %>%
+  mutate(
+    game_date.x = coalesce(game_date.y, game_date.x),
+    home_plate_full_name.x = coalesce(home_plate_full_name.y, home_plate_full_name.x),
+    home_plate_id.x = coalesce(home_plate_id.y, home_plate_id.x),
+    away_starter.x = coalesce(away_starter.y, away_starter.x),
+    id1.x = coalesce(id1.y, id1.x),
+    home_starter.x = coalesce(home_starter.y, home_starter.x),
+    id2.x = coalesce(id2.y, id2.x)) %>%
+  # Drop the .y columns
+  select(-ends_with(".y")) %>%
+  # Rename the .x columns to remove the .x suffix
+  rename_with(~ gsub("\\.x$", "", .), ends_with(".x"))
+
+# Save the updated dataframe
+saveRDS(all_data, file = "mlb_master_data.rds")
+
+
+######
 
 #Load in players DF to be able to extract necessary pitchers
 players <- readRDS("people.rds")
 
 # Extract unique player IDs from the 'id1' column
-player_ids <- unique(c(mlb_master_data$id1, mlb_master_data$id2))
-player_ids <- player_ids[-1]
+player_ids <- unique(c(all_data$id1, all_data$id2))
+
 
 # Filter the players dataframe to find rows where players$key_mlbam matches player_ids
-matched_df <- players |> filter(key_mlbam %in% player_ids)
+matched_df <- players %>%
+  filter(key_mlbam %in% player_ids) %>%
+  distinct(key_mlbam, .keep_all = TRUE)
 
-#some of the IDs result in NA in key_bbref. This is because the
-#mlb game data incorrectly assigned the pitchers for certain games
-#There are only 7 pitcher mistakes, and likely only 7 starts, so not worth the
-#time to fix
+matched_df <- matched_df |>
+  filter(!is.na(key_mlbam))
 
 matched_df <- matched_df %>%
   rename(playerid = key_fangraphs)
+#some of the IDs result in NA in key_bbref. This is because they are rookies
+
+#filter to get players who need ids
+need_id <- matched_df |>
+  filter(is.na(playerid))
+
+#trim to necessary columns
+need_id <- need_id |>
+  select(key_mlbam, playerid, 13:14)
+
+#using online resource that updates IDs
+data <- read_sheet('1JgczhD5VDQ1EiXqVG-blttZcVwbZd5_Ne_mefUGwJnk')
+
+#bring IDs over
+need_id <- left_join(need_id, data, by = c('key_mlbam' = 'MLBID'))
+
+need_id <- need_id |>
+  select(1, 13)
+
+# if `IDFANGRAPHS` is a list
+if (is.list(need_id$IDFANGRAPHS)) {
+  # Flatten the list and ensure correct length
+  flattened_ids <- unlist(need_id$IDFANGRAPHS)
+  flattened_ids <- as.character(flattened_ids)
+
+  # Update the data frame
+  need_id <- need_id[!is.na(flattened_ids), ]
+  need_id$IDFANGRAPHS <- flattened_ids
+}
+
+need_id <- need_id %>%
+  filter(str_detect(IDFANGRAPHS, "^\\d{5}$"))
+
+# Convert the character vector to integer
+need_id$IDFANGRAPHS <- as.integer(need_id$IDFANGRAPHS)
+
+matched_df <- left_join(matched_df, need_id)
+
+#fill NAs
+matched_df <- matched_df |>
+  mutate(playerid = ifelse(is.na(playerid), IDFANGRAPHS, playerid))
+
 
 # Define the function to retrieve pitcher game logs
 get_pitcher_logs <- function(playerid, year) {
@@ -401,34 +522,34 @@ all_pitcher_logs_lists <- list(pitcher_logs_list17, pitcher_logs_list18,
                                pitcher_logs_list21, pitcher_logs_list22,
                                pitcher_logs_list23, pitcher_logs_list24)
 
+# Flatten the list of lists
+flattened_list <- do.call(c, all_pitcher_logs_lists)
+
 # Convert all dataframes to data.tables
-all_pitcher_logs_lists <- lapply(all_pitcher_logs_lists, function(list_of_dfs) {
-  lapply(list_of_dfs, as.data.table)
-})
+flattened_list <- lapply(flattened_list, as.data.table)
+
+# Get all column names dynamically
+all_columns <- unique(unlist(lapply(flattened_list, names)))
 
 # Define function to add missing columns
 add_missing_columns <- function(df, all_columns) {
   df <- as.data.table(df)  # Ensure it's a data.table
   missing_cols <- setdiff(all_columns, names(df))
-  df[, (missing_cols) := NA]
+  df[, (missing_cols) := NA]  # Add missing columns with NA values
   return(df)
 }
 
 # Align columns for each dataframe
-aligned_dataframes <- lapply(all_pitcher_logs_lists, function(list_of_dfs) {
-  lapply(list_of_dfs, function(df) {
-    add_missing_columns(df, all_columns)
-  })
+aligned_dataframes <- lapply(flattened_list, function(df) {
+  add_missing_columns(df, all_columns)
 })
 
-# Flatten the list of lists
-flattened_list <- do.call(c, aligned_dataframes)
-
 # Combine the data tables into a single data.table
-combined_data <- rbindlist(flattened_list, fill = TRUE)
+combined_data <- rbindlist(aligned_dataframes, fill = TRUE)
 
-#remove top row
-combined_data <- combined_data |> filter(!is.na(PlayerName))
+# Remove rows with NA in specific columns (e.g., PlayerName)
+combined_data <- combined_data[!is.na(PlayerName)]
 
+# Save to RDS file
 saveRDS(combined_data, file = "pitcher_game_logs.rds")
 
