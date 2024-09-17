@@ -1444,13 +1444,13 @@ colnames(teams) <- paste0("T_", colnames(teams))
 
 
 #save DFS
-saveRDS(team_rolling, "C:/Users/dresi/Documents/team_rolling_game_averages.rds")
+saveRDS(team_rolling, "team_rolling_game_averages.rds")
 
-saveRDS(per_season, "C:/Users/dresi/Documents/player_pitching_stats_by_season.rds")
+saveRDS(per_season, "player_pitching_stats_by_season.rds")
 
-saveRDS(teams, "C:/Users/dresi/Documents/team_batting_by_season.rds")
+saveRDS(teams, "team_batting_by_season.rds")
 
-saveRDS(lg_avgs, "C:/Users/dresi/Documents/league_starting_pitching_averages.rds")
+saveRDS(lg_avgs, "league_starting_pitching_averages.rds")
 
-saveRDS(starters, "C:/Users/dresi/Documents/all_pitcher_game_by_game_averages.rds")
+saveRDS(starters, "all_pitcher_game_by_game_averages.rds")
 
