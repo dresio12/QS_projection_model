@@ -4,26 +4,25 @@ library(baseballr)
 library(data.table)
 library(zoo)
 
-#load RDS
+# Load RDS
 pitcher_stats <- readRDS("pitcher_game_logs.rds")
 
-#create new df that gets rid of unneccessary columns
-#initial trim
+# Create new df that gets rid of unnecessary columns
+# Initial trim
 starters <- pitcher_stats |>
   select(1:75)
-#final trim
+
+# Final trim
 starters <- starters |>
   select(1:15, 21:36, 39:41, 69:72)
 
-# create cumulative_ERA column (c_ERA) and running ERA that includes current
-# and previous 5 games
+# Create cumulative_ERA column (c_ERA) and running ERA that includes current and previous 5 games
 starters <- starters %>%
   arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
   mutate(
     # Convert IP to outs (whole number part * 3 + decimal part)
-    outs_pitched = ((floor(IP) * 3) + ((IP-floor(IP)) * 10)),
-    out_fraction = (IP - floor(IP))/.3,
-    
+    outs_pitched = ((floor(IP) * 3) + ((IP - floor(IP)) * 10)),
+    out_fraction = (IP - floor(IP)) / .3,
     
     # Convert back to innings
     IP_corrected = (floor(IP) + out_fraction)
@@ -45,10 +44,8 @@ starters <- starters %>%
   
   ungroup()  # Ungroup when done
 
-
-#creates rolling 6-game (previous 5  + current) ERA
+# Create rolling 6-game (previous 5 + current) ERA
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_ERA = sapply(seq_len(n()), function(i) {
@@ -71,11 +68,8 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-#create cumulative K/9
+# Create cumulative K/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(PlayerName, season) %>%
   mutate(
     # Cumulative strikeouts per player
@@ -87,9 +81,8 @@ starters <- starters %>%
   
   ungroup()  # Ungroup when done
 
-#create 6-game rolling K/9
+# Create 6-game rolling K/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_K9 = sapply(seq_len(n()), function(i) {
@@ -112,12 +105,8 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-
-#create cumulative QS Ratio
+# Create cumulative QS Ratio
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(PlayerName, season) %>%
   mutate(
     # Cumulative QS and GS per player
@@ -130,31 +119,26 @@ starters <- starters %>%
   
   ungroup()  # Ungroup when done
 
-
-#create cumulative BB/9
+# Create cumulative BB/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(PlayerName, season) %>%
   mutate(
-    # Cumulative strikeouts per player
+    # Cumulative walks per player
     cumulative_BB = cumsum(BB),
     
-    # Calculate cumulative K/9, but handle cases where IP is zero to avoid division by zero
+    # Calculate cumulative BB/9, but handle cases where IP is zero to avoid division by zero
     c_BB9 = ifelse(cumulative_IP == 0, NA, (cumulative_BB * 9) / cumulative_IP)
   ) %>%
   
   ungroup()  # Ungroup when done
 
-#create 6-game rolling BB/9
+# Create 6-game rolling BB/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_BB9 = sapply(seq_len(n()), function(i) {
       if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative K/9
+        # For rows with 6 or fewer previous games, use cumulative BB/9
         c_BB9[i]
       } else {
         # Manually subset the previous 6 games including the current one
@@ -172,32 +156,26 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-
-
-#create rolling H/9
+# Create rolling H/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(PlayerName, season) %>%
   mutate(
-    # Cumulative strikeouts per player
+    # Cumulative hits per player
     cumulative_H = cumsum(H),
     
-    # Calculate cumulative K/9, but handle cases where IP is zero to avoid division by zero
+    # Calculate cumulative H/9, but handle cases where IP is zero to avoid division by zero
     c_H9 = ifelse(cumulative_IP == 0, NA, (cumulative_H * 9) / cumulative_IP)
   ) %>%
   
   ungroup()  # Ungroup when done
 
-#create 6-game rolling H/9
+# Create 6-game rolling H/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_H9 = sapply(seq_len(n()), function(i) {
       if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative K/9
+        # For rows with 6 or fewer previous games, use cumulative H/9
         c_H9[i]
       } else {
         # Manually subset the previous 6 games including the current one
@@ -215,10 +193,8 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-
 # Calculate cumulative K/BB
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure the data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     # Calculate cumulative K/BB, but handle cases where cumulative_BB is zero to avoid division by zero
@@ -228,7 +204,6 @@ starters <- starters %>%
 
 # Calculate rolling K/BB (last 6 games)
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_KBB = sapply(seq_len(n()), function(i) {
@@ -251,10 +226,8 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-
 # Calculate cumulative HR/9
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     # Cumulative HR and HR/9, handle cases where cumulative_IP is zero to avoid division by zero
@@ -265,7 +238,6 @@ starters <- starters %>%
 
 # Calculate rolling HR/9 (last 6 games)
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_HR9 = sapply(seq_len(n()), function(i) {
@@ -279,7 +251,7 @@ starters <- starters %>%
         rolling_cumulative_IP <- sum(data$IP_corrected)
         
         if (rolling_cumulative_IP == 0) {
-          NA  # Avoid division by zero
+          NA
         } else {
           (rolling_cumulative_HR * 9) / rolling_cumulative_IP
         }
@@ -288,360 +260,63 @@ starters <- starters %>%
   ) %>%
   ungroup()
 
-
-# Calculate cumulative RA9
+# Calculate rolling ERA for all games (last 10 games)
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
-    # Cumulative runs allowed and RA9, handle cases where cumulative_IP is zero to avoid division by zero
-    cumulative_R = cumsum(R),
-    c_RA9 = ifelse(cumulative_IP == 0, NA, (cumulative_R * 9) / cumulative_IP)
-  ) %>%
-  ungroup()
-
-# Calculate rolling RA9 (last 6 games)
-starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(PlayerName, season) %>%
-  mutate(
-    rolling_RA9 = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative RA9
-        c_RA9[i]
+    rolling_ERA_10 = sapply(seq_len(n()), function(i) {
+      if (i <= 10) {
+        # For rows with 10 or fewer previous games, use cumulative ERA
+        c_ERA[i]
       } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_R <- sum(data$R)
-        rolling_cumulative_IP <- sum(data$IP_corrected)
-        
-        if (rolling_cumulative_IP == 0) {
-          NA  # Avoid division by zero
-        } else {
-          (rolling_cumulative_R * 9) / rolling_cumulative_IP
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
-
-
-#Calculating cumulative and rolling FIP
-# Calculate league-wide statistics, excluding zero IP cases to avoid division by zero
-league_averages <- starters %>%
-  filter(cumulative_IP > 0) %>%  # Exclude rows where cumulative_IP is zero
-  group_by(season) %>%
-  summarize(
-    lgERA = mean(cumulative_ER * 9 / cumulative_IP, na.rm = TRUE),
-    lgHR = mean(HR, na.rm = TRUE),
-    lgBB = mean(BB, na.rm = TRUE),
-    lgHBP = mean(HBP, na.rm = TRUE),
-    lgK = mean(SO, na.rm = TRUE),
-    lgIP = mean(IP_corrected, na.rm = TRUE)
-  )
-
-# Calculate FIP constant for each season
-fip_constants <- league_averages %>%
-  mutate(
-    FIP_constant = lgERA - (((13 * lgHR) + (3 * (lgBB + lgHBP)) - (2 * lgK)) / lgIP)
-  )
-
-# Merge with starters data to get FIP constants
-starters <- starters %>%
-  left_join(fip_constants, by = "season") %>%
-  mutate(
-    # Calculate FIP
-    FIP = ((13 * HR) + (3 * (BB + HBP)) - (2 * SO)) / IP_corrected + FIP_constant
-  )
-
-
-# Rolling FIP (previous 6 games including the current one)
-starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(PlayerName, season) %>%
-  mutate(
-    rolling_FIP = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative FIP
-        FIP[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_HR <- sum(data$HR)
-        rolling_cumulative_BB <- sum(data$BB)
-        rolling_cumulative_HBP <- sum(data$HBP)
-        rolling_cumulative_SO <- sum(data$SO)
+        # Manually subset the previous 10 games including the current one
+        data <- cur_data()[(i-9):i, ]
+        rolling_cumulative_ER <- sum(data$ER)
         rolling_cumulative_IP <- sum(data$IP_corrected)
         
         if (rolling_cumulative_IP == 0) {
           NA
         } else {
-          rolling_FIP_constant <- mean(data$FIP_constant)
-          ((13 * rolling_cumulative_HR) + (3 * (rolling_cumulative_BB + rolling_cumulative_HBP)) - (2 * rolling_cumulative_SO)) / rolling_cumulative_IP + rolling_FIP_constant
+          (rolling_cumulative_ER * 9) / rolling_cumulative_IP
         }
       }
     })
   ) %>%
   ungroup()
 
-
 # Calculate cumulative WHIP
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
+  group_by(PlayerName, season) %>%
   mutate(
-   # Cumulative WHIP
-    cumulative_WHIP = ifelse(cumulative_IP == 0, NA, (cumulative_BB + cumulative_H) / cumulative_IP)
-  )
+    # Calculate WHIP (Walks + Hits) / IP
+    c_WHIP = ifelse(cumulative_IP == 0, NA, (cumulative_BB + cumulative_H) / cumulative_IP)
+  ) %>%
+  ungroup()
 
-
-# Calculate rolling WHIP
+# Calculate rolling WHIP (last 6 games)
 starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(PlayerName, season) %>%
   mutate(
     rolling_WHIP = sapply(seq_len(n()), function(i) {
       if (i <= 6) {
         # For rows with 6 or fewer previous games, use cumulative WHIP
-        cumulative_WHIP[i]
+        c_WHIP[i]
       } else {
         # Manually subset the previous 6 games including the current one
         data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_walks <- sum(data$BB)
-        rolling_cumulative_hits <- sum(data$H)
+        rolling_cumulative_BB <- sum(data$BB)
+        rolling_cumulative_H <- sum(data$H)
         rolling_cumulative_IP <- sum(data$IP_corrected)
         
         if (rolling_cumulative_IP == 0) {
           NA
         } else {
-          (rolling_cumulative_walks + rolling_cumulative_hits) / rolling_cumulative_IP
+          (rolling_cumulative_BB + rolling_cumulative_H) / rolling_cumulative_IP
         }
       }
     })
   ) %>%
   ungroup()
-
-
-
-# Calculate cumulative and rolling FB% and GB%
-starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(PlayerName, season) %>%
-  mutate(
-    cumulative_FB = cumsum(FB),
-    cumulative_GB = cumsum(GB),
-    cumulative_LD = cumsum(LD),
-    cumulative_Balls = cumulative_FB + cumulative_GB + cumulative_LD,
-    
-    # Cumulative Flyball% (FB%) and Groundball% (GB%)
-    c_FB_pct = ifelse(cumulative_Balls == 0, NA, cumulative_FB / cumulative_Balls),
-    c_GB_pct = ifelse(cumulative_Balls == 0, NA, cumulative_GB / cumulative_Balls)
-  ) %>%
-  
-  # Calculate rolling FB% and GB% using the previous 6 games including the current one
-  mutate(
-    rolling_FB_pct = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative FB%
-        c_FB_pct[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_FB <- sum(data$FB)
-        rolling_cumulative_GB <- sum(data$GB)
-        rolling_cumulative_LD <- sum(data$LD)
-        rolling_cumulative_Balls <- rolling_cumulative_FB + rolling_cumulative_GB + rolling_cumulative_LD
-        
-        if (rolling_cumulative_Balls == 0) {
-          NA
-        } else {
-          rolling_cumulative_FB / rolling_cumulative_Balls
-        }
-      }
-    }),
-    
-    rolling_GB_pct = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_GB_pct[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_FB <- sum(data$FB)
-        rolling_cumulative_GB <- sum(data$GB)
-        rolling_cumulative_LD <- sum(data$LD)
-        rolling_cumulative_Balls <- rolling_cumulative_FB + rolling_cumulative_GB + rolling_cumulative_LD
-        
-        if (rolling_cumulative_Balls == 0) {
-          NA
-        } else {
-          rolling_cumulative_GB / rolling_cumulative_Balls
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
-
-#calculate cumulative and rolling K/game, BB/game, ER/game, H/game, HR/game, IP/game
-starters <- starters %>%
-  group_by(PlayerName, season) %>%
-  mutate(
-    cumulative_G = cumsum(G),
-    c_K_game = ifelse(cumulative_G == 0, NA, cumulative_SO / cumulative_G),
-    c_BB_game = ifelse(cumulative_G == 0, NA, cumulative_BB / cumulative_G),
-    c_ER_game = ifelse(cumulative_G == 0, NA, cumulative_ER / cumulative_G),
-    c_IP_game = ifelse(cumulative_IP == 0, 0, cumulative_IP / cumulative_G),
-    c_HR_game = ifelse(cumulative_G == 0, NA, cumulative_HR / cumulative_G),
-    c_H_game = ifelse(cumulative_G == 0, NA, cumulative_H / cumulative_G),
- 
-    # Rolling Stats (last 6 games)
-    rolling_K_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_K_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_K <- sum(data$SO)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_K / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_BB_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_BB_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_BB <- sum(data$BB)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_BB / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_ER_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_ER_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_ER <- sum(data$ER)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_ER / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_H_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_H_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_H <- sum(data$H)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_H / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_HR_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_HR_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_HR <- sum(data$HR)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_HR / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_IP_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative GB%
-        c_IP_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_IP <- sum(data$IP)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_IP == 0) {
-          0
-        } else {
-          rolling_cumulative_IP / rolling_cumulative_G
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
-# Calculate cumulative pitches
-starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(PlayerName, season) %>%
-  mutate(
-    # Cumulative pitches/G
-    cumulative_pitches = cumsum(Pitches),
-    c_p_game = ifelse(cumulative_G == 0, NA, (cumulative_pitches) / cumulative_G)
-  ) %>%
-  ungroup()
-
-# Calculate rolling P/game (last 6 games)
-starters <- starters %>%
-  arrange(PlayerName, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(PlayerName, season) %>%
-  mutate(
-    rolling_p_game = sapply(seq_len(n()), function(i) {
-      if (i <= 6) {
-        # For rows with 6 or fewer previous games, use cumulative RA9
-        c_p_game[i]
-      } else {
-        # Manually subset the previous 6 games including the current one
-        data <- cur_data()[(i-5):i, ]
-        rolling_cumulative_pitches <- sum(data$Pitches)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA  # Avoid division by zero
-        } else {
-          (rolling_cumulative_pitches) / rolling_cumulative_G
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
 
 
 #Getting cumulative season stats for each pitcher
@@ -653,8 +328,8 @@ c_stats <- starters %>%
   ungroup()
 
 c_stats <- c_stats |>
-  select(1, 2, 6, 7, 9, 46, 56, 59, 49:53, 39, 41:44, 55, 58, 
-         47, 60, 61, 63, 64, 72:73, 75, 77:79, 81, 82, 85:91, 98:99)
+  select(1, 2, 6, 7, 9, 47, 57, 60, 50:54, 39:45, 56, 59, 
+         48, 61, 62, 64, 65, 73:74, 76, 78:80, 82, 83, 86:92, 99:100)
 
 #getting total sums for stats not included above
 other_c <- starters |>
@@ -837,21 +512,20 @@ team_rolling <- team_rolling %>%
 
 
 
-#calculate cumulative and rolling totals and rate stats
+# Calculate cumulative and rolling totals and rate stats
 
-# create cumulative_ERA column (c_ERA) and running ERA that includes current
+# Create cumulative_ERA column (c_ERA) and running ERA that includes current
 # and previous 5 games
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
+  arrange(team, season, Date) %>%  # Ensure the data is ordered by team, season, and date
   mutate(
     # Convert IP to outs (whole number part * 3 + decimal part)
-    outs_pitched = floor(IP) * 3 + ifelse(IP %% 1 == 0.1, 1, ifelse(IP %% 1 == 0.2, 2, 0)),
+    outs_pitched = ((floor(IP) * 3) + ((IP - floor(IP)) * 10)),
+    out_fraction = (IP - floor(IP)) / .3,
     
     # Convert back to innings
-    IP_corrected = outs_pitched / 3
+    IP_corrected = (floor(IP) + out_fraction)
   ) %>%
-  
-  # Group by player and season to calculate cumulative stats
   group_by(team, season) %>%
   mutate(
     # Cumulative outs and earned runs per player
@@ -864,18 +538,15 @@ team_rolling <- team_rolling %>%
     # Calculate cumulative ERA, but handle cases where IP is zero to avoid division by zero
     c_ERA = ifelse(cumulative_IP == 0, NA, (cumulative_ER * 9) / cumulative_IP)
   ) %>%
-  
-  ungroup()  # Ungroup when done
+  ungroup()
 
-
-#creates rolling 10-game (previous 9  + current) ERA
+# Create rolling 10-game (previous 9 + current) ERA
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_ERA = sapply(seq_len(n()), function(i) {
       if (i <= 10) {
-        # For rows with 9 or fewer previous games, use cumulative ERA
+        # For rows with 10 or fewer previous games, use cumulative ERA
         c_ERA[i]
       } else {
         # Manually subset the previous 9 games including the current one
@@ -893,12 +564,8 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-
-#quality starts and QS ratio
+# Quality starts and QS ratio
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(team, season) %>%
   mutate(
     # Cumulative QS and GS per player
@@ -908,28 +575,19 @@ team_rolling <- team_rolling %>%
     # Calculate cumulative QSR (QS ratio), but handle cases where IP is zero to avoid division by zero
     c_QSR = ifelse(cumulative_IP == 0, NA, (cumulative_QS) / cumulative_GS)
   ) %>%
-  
-  ungroup()  # Ungroup when done
+  ungroup()
 
-
+# Cumulative strikeouts and K/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(team, season) %>%
   mutate(
-    # Cumulative strikeouts per player
     cumulative_SO = cumsum(SO),
-    
-    # Calculate cumulative K/9, but handle cases where IP is zero to avoid division by zero
     c_K9 = ifelse(cumulative_IP == 0, NA, (cumulative_SO * 9) / cumulative_IP)
   ) %>%
-  
-  ungroup()  # Ungroup when done
+  ungroup()
 
-#create 10-game rolling K/9
+# Create 10-game rolling K/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_K9 = sapply(seq_len(n()), function(i) {
@@ -952,30 +610,22 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-#create cumulative BB/9
+# Cumulative BB/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(team, season) %>%
   mutate(
-    # Cumulative strikeouts per player
     cumulative_BB = cumsum(BB),
-    
-    # Calculate cumulative K/9, but handle cases where IP is zero to avoid division by zero
     c_BB9 = ifelse(cumulative_IP == 0, NA, (cumulative_BB * 9) / cumulative_IP)
   ) %>%
-  
-  ungroup()  # Ungroup when done
+  ungroup()
 
-#create 10-game rolling BB/9
+# Create 10-game rolling BB/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_BB9 = sapply(seq_len(n()), function(i) {
       if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative K/9
+        # For rows with 10 or fewer previous games, use cumulative BB/9
         c_BB9[i]
       } else {
         # Manually subset the previous 10 games including the current one
@@ -993,32 +643,22 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-
-
-#create rolling H/9
+# Create rolling H/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
-  
-  # Group by player and season to calculate cumulative stats
   group_by(team, season) %>%
   mutate(
-    # Cumulative strikeouts per player
     cumulative_H = cumsum(H),
-    
-    # Calculate cumulative K/9, but handle cases where IP is zero to avoid division by zero
     c_H9 = ifelse(cumulative_IP == 0, NA, (cumulative_H * 9) / cumulative_IP)
   ) %>%
-  
-  ungroup()  # Ungroup when done
+  ungroup()
 
-#create 10-game rolling H/9
+# Create 10-game rolling H/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_H9 = sapply(seq_len(n()), function(i) {
       if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative K/9
+        # For rows with 10 or fewer previous games, use cumulative H/9
         c_H9[i]
       } else {
         # Manually subset the previous 10 games including the current one
@@ -1036,20 +676,16 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-
 # Calculate cumulative K/BB
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure the data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
-    # Calculate cumulative K/BB, but handle cases where cumulative_BB is zero to avoid division by zero
     c_KBB = ifelse(cumulative_BB == 0, NA, cumulative_SO / cumulative_BB)
   ) %>%
   ungroup()
 
 # Calculate rolling K/BB (last 10 games)
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_KBB = sapply(seq_len(n()), function(i) {
@@ -1072,13 +708,10 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-
 # Calculate cumulative HR/9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
-    # Cumulative HR and HR/9, handle cases where cumulative_IP is zero to avoid division by zero
     cumulative_HR = cumsum(HR),
     c_HR9 = ifelse(cumulative_IP == 0, NA, (cumulative_HR * 9) / cumulative_IP)
   ) %>%
@@ -1086,7 +719,6 @@ team_rolling <- team_rolling %>%
 
 # Calculate rolling HR/9 (last 10 games)
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_HR9 = sapply(seq_len(n()), function(i) {
@@ -1109,13 +741,10 @@ team_rolling <- team_rolling %>%
   ) %>%
   ungroup()
 
-
 # Calculate cumulative R9
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
-    # Cumulative runs allowed and RA9, handle cases where cumulative_IP is zero to avoid division by zero
     cumulative_R = cumsum(R),
     c_R9 = ifelse(cumulative_IP == 0, NA, (cumulative_R * 9) / cumulative_IP)
   ) %>%
@@ -1123,13 +752,12 @@ team_rolling <- team_rolling %>%
 
 # Calculate rolling R9 (last 10 games)
 team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
   group_by(team, season) %>%
   mutate(
     rolling_R9 = sapply(seq_len(n()), function(i) {
       if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative RA9
-        c_RA9[i]
+        # For rows with 10 or fewer previous games, use cumulative R9
+        c_R9[i]
       } else {
         # Manually subset the previous 10 games including the current one
         data <- cur_data()[(i-9):i, ]
@@ -1145,285 +773,6 @@ team_rolling <- team_rolling %>%
     })
   ) %>%
   ungroup()
-
-# Calculate cumulative and rolling FB% and GB%
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  # Ensure data is ordered by player, season, and date
-  group_by(team, season) %>%
-  mutate(
-    cumulative_FB = cumsum(FB),
-    cumulative_GB = cumsum(GB),
-    cumulative_LD = cumsum(LD),
-    cumulative_Balls = cumulative_FB + cumulative_GB + cumulative_LD,
-    
-    # Cumulative Flyball% (FB%) and Groundball% (GB%)
-    c_FB_pct = ifelse(cumulative_Balls == 0, NA, cumulative_FB / cumulative_Balls),
-    c_GB_pct = ifelse(cumulative_Balls == 0, NA, cumulative_GB / cumulative_Balls)
-  ) %>%
-  
-  # Calculate rolling FB% and GB% using the previous 10 games including the current one
-  mutate(
-    rolling_FB_pct = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative FB%
-        c_FB_pct[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_FB <- sum(data$FB)
-        rolling_cumulative_GB <- sum(data$GB)
-        rolling_cumulative_LD <- sum(data$LD)
-        rolling_cumulative_Balls <- rolling_cumulative_FB + rolling_cumulative_GB + rolling_cumulative_LD
-        
-        if (rolling_cumulative_Balls == 0) {
-          NA
-        } else {
-          rolling_cumulative_FB / rolling_cumulative_Balls
-        }
-      }
-    }),
-    
-    rolling_GB_pct = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_GB_pct[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_FB <- sum(data$FB)
-        rolling_cumulative_GB <- sum(data$GB)
-        rolling_cumulative_LD <- sum(data$LD)
-        rolling_cumulative_Balls <- rolling_cumulative_FB + rolling_cumulative_GB + rolling_cumulative_LD
-        
-        if (rolling_cumulative_Balls == 0) {
-          NA
-        } else {
-          rolling_cumulative_GB / rolling_cumulative_Balls
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
-#get rid of ERA, no necessary other than to get the proper IP columns
-team_rolling <- team_rolling |> select(-34, -35)
-
-
-#cumulative batting average. it's slightly lower because i don't have SF
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  
-  group_by(team, season) %>%
-  mutate(
-    cumulative_PA = cumsum(PA),
-    cumulative_AB = cumsum(PA - (BB + IBB + HBP)),
-    c_AVG = cumulative_H / cumulative_AB
-  )
-
-#rolling batting average
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  
-  group_by(team, season) %>%
-  
-mutate(
-  rolling_AVG = sapply(seq_len(n()), function(i) {
-    if (i <= 10) {
-      # For rows with 10 or fewer previous games, use cumulative FB%
-      c_AVG[i]
-    } else {
-      # Manually subset the previous 10 games including the current one
-      data <- cur_data()[(i-9):i, ]
-      rolling_cumulative_H <- sum(data$H)
-      rolling_cumulative_PA <- sum(data$PA)
-      rolling_cumulative_BB <- sum(data$BB)
-      rolling_cumulative_IBB <- sum(data$IBB)
-      rolling_cumulative_HBP <- sum(data$HBP)
-      rolling_cumulative_AB <- rolling_cumulative_PA - (rolling_cumulative_BB +
-                                                        rolling_cumulative_IBB +
-                                                        rolling_cumulative_HBP)
-      
-      if (rolling_cumulative_AB == 0) {
-        NA
-      } else {
-        rolling_cumulative_H / rolling_cumulative_AB
-      }
-    }
-  })
-  ) %>%
-    
-  ungroup()
-
-
-#cumulative OBP. it's slightly higher because i don't have SF
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  
-  group_by(team, season) %>%
-  mutate(
-    cumulative_IBB = cumsum(IBB),
-    cumulative_HBP = cumsum(HBP),
-    c_OBP = (cumulative_H + cumulative_BB + cumulative_HBP +cumulative_IBB)/
-      (cumulative_AB + cumulative_BB + cumulative_IBB + cumulative_HBP)
-  )
-
-#rolling OBP
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  
-  group_by(team, season) %>%
-  
-  mutate(
-    rolling_OBP = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative FB%
-        c_OBP[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_PA <- sum(data$PA)
-        rolling_cumulative_H <- sum(data$H)
-        rolling_cumulative_BB <- sum(data$BB)
-        rolling_cumulative_IBB <- sum(data$IBB)
-        rolling_cumulative_HBP <- sum(data$HBP)
-        rolling_cumulative_AB <- rolling_cumulative_PA - (rolling_cumulative_BB +
-                                                            rolling_cumulative_IBB +
-                                                            rolling_cumulative_HBP)
-        
-        if (rolling_cumulative_AB == 0) {
-          NA
-        } else {
-          (rolling_cumulative_H + rolling_cumulative_BB + rolling_cumulative_HBP 
-           + rolling_cumulative_IBB)/
-            (rolling_cumulative_AB + rolling_cumulative_BB + rolling_cumulative_IBB
-             + rolling_cumulative_HBP)
-        }
-      }
-    })
-  ) %>%
-  
-  ungroup()
-
-#calculate cumulative and rolling K/game, BB/game, ER/game, H/game, HR/game, IP/game
-team_rolling <- team_rolling %>%
-  arrange(team, season, Date) %>%  
-  group_by(team, season) %>%
-  mutate(
-    cumulative_G = cumsum(G),
-    c_K_game = ifelse(cumulative_G == 0, NA, cumulative_SO / cumulative_G),
-    c_BB_game = ifelse(cumulative_G == 0, NA, cumulative_BB / cumulative_G),
-    c_ER_game = ifelse(cumulative_G == 0, NA, cumulative_ER / cumulative_G),
-    c_IP_game = ifelse(cumulative_IP == 0, 0, cumulative_IP / cumulative_G),
-    c_HR_game = ifelse(cumulative_G == 0, NA, cumulative_HR / cumulative_G),
-    c_H_game = ifelse(cumulative_G == 0, NA, cumulative_H / cumulative_G),
-    
-    # Rolling Stats (last 10 games)
-    rolling_K_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_K_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_K <- sum(data$SO)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_K / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_BB_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_BB_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_BB <- sum(data$BB)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_BB / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_ER_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_ER_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_ER <- sum(data$ER)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_ER / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_H_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_H_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_H <- sum(data$H)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_H / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_HR_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_HR_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_HR <- sum(data$HR)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_G == 0) {
-          NA
-        } else {
-          rolling_cumulative_HR / rolling_cumulative_G
-        }
-      }
-    }),
-    
-    rolling_IP_game = sapply(seq_len(n()), function(i) {
-      if (i <= 10) {
-        # For rows with 10 or fewer previous games, use cumulative GB%
-        c_IP_game[i]
-      } else {
-        # Manually subset the previous 10 games including the current one
-        data <- cur_data()[(i-9):i, ]
-        rolling_cumulative_IP <- sum(data$IP)
-        rolling_cumulative_G <- sum(data$G)
-        
-        if (rolling_cumulative_IP == 0) {
-          0
-        } else {
-          rolling_cumulative_IP / rolling_cumulative_G
-        }
-      }
-    })
-  ) %>%
-  ungroup()
-
 
 #join park factor to df
 team_rolling <- team_rolling %>%

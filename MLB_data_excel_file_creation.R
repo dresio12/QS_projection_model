@@ -9,7 +9,7 @@ library(googlesheets4)
 
 #turn off scientific notation
 
-options(scipeb = 999)
+options(scipen = 999)
 
 #example of grabbing single-game information at MLB level
 #For MiLB, use different levelID
@@ -268,76 +268,13 @@ all_game_info_df <- rbind(combined_game_info2017,
 
 
 mlb_master_data <- left_join(mlb_master_data, all_game_info_df, by = "game_pk")
+saveRDS(mlb_master_data,  "mlb_master_data.rds")
+
 mlb_master_data <- unique(mlb_master_data)
 
-saveRDS(mlb_master_data,  "C:/Users/dresi/Documents/mlb_master_data.rds")
+saveRDS(mlb_master_data,  "mlb_master_data.rds")
 
-
-# Define a function to retrieve pitcher for a given game_pk
-get_game_starter <- function(game_pk) {
-  tryCatch({
-    game_starter <- baseballr::get_probables_mlb(game_pk = game_pk)
-    return(game_starter)
-  }, error = function(e) {
-    message("Error retrieving starter for game_pk ", game_pk, ": ", e$message)
-    return(NULL)
-  })
-}
-
-# Retrieve game info for all game_pks
-starter_list <- list()
-
-# Load existing data if available
-if (file.exists("starter_list.rds")) {
-  starter_list <- readRDS("starter_list.rds")
-  start_index <- length(starter_list) + 1  # Resume from the next unsaved game_pk
-} else {
-  starter_list <- list()
-  start_index <- 1
-}
-
-# Loop through the remaining game_pks
-for (i in seq(start_index, length(mlb_master_data$game_pk))) {
-  game_pk <- mlb_master_data$game_pk[i]
-  
-  # Retrieve the game starter
-  starter_list[[i]] <- get_game_starter(game_pk)
-  
-  # Save progress every 25 results
-  if (i %% 25 == 0) {
-    saveRDS(starter_list, "starter_list.rds")
-    message(paste("Saved progress at game", i))
-  }
-}
-
-# Final save to ensure all results are saved at the end
-saveRDS(starter_list, "starter_list.rds")
-
-
-# Combine results into a single dataframe
-starter_list <- starter_list[-1042]
-
-starter_list_df <- rbindlist(starter_list, fill = TRUE)
-
-starter_list_df <- starter_list_df |>
-  group_by(game_pk, game_date, home_plate_full_name, home_plate_id) %>%
-  summarize(
-    away_starter = first(fullName),
-    id1 = first(id),
-    teams.away.team.name = first(team),
-    teams.away.team.id = first(team_id),
-    home_starter = last(fullName),
-    id2 = last(id),
-    teams.home.team.name = last(team),
-    teams.home.team.id = last(team_id),
-    .groups = 'drop'
-  )
-
-saveRDS(starter_list_df, "probable_starts.rds")
-
-mlb_master_data <- left_join(mlb_master_data, starter_list_df)
-
-###
+saveRDS(all_game_info_df, 'all_game_info.rds')
 
 #add park factors from RDS
 pf <- readRDS("all_park_factors.rds")
@@ -350,88 +287,8 @@ all_data <- left_join(mlb_master_data, pf,
                              by = c("teams.home.team.name" = "home_team", 
                                     "season"))
 
-#trim to only necessary columns
-all_data <- all_data |>
-  select(1, 5:7, 16, 26:29, 33, 37:41, 43, 47:51, 53, 54, 58:61,
-         67, 68, 71:76, 88:93, 95, 96)
 
-saveRDS(all_data,  "C:/Users/dresi/Documents/mlb_master_data.rds")
-
-###
-
-#for some reason 2018 and 2018 didn't load into mlb_master_data
-#this fixes that
-all_data_subset <- all_data %>% 
-  filter(season == '2017' | season == '2018')
-
-get_game_starter <- function(game_pk) {
-  tryCatch({
-    game_starter <- baseballr::get_probables_mlb(game_pk = game_pk)
-    return(game_starter)
-  }, error = function(e) {
-    message("Error retrieving starter for game_pk ", game_pk, ": ", e$message)
-    return(NULL)
-  })
-}
-
-# Initialize an empty list to store starter information
-starter_list <- list()
-
-# Loop through the filtered game_pks
-for (i in seq_along(all_data_subset$game_pk)) {
-  game_pk <- all_data_subset$game_pk[i]
-  
-  # Retrieve the game starter
-  starter_list[[i]] <- get_game_starter(game_pk)
-  
-  # Save progress every 25 results and overwrite existing file
-  if (i %% 25 == 0) {
-    saveRDS(starter_list, "starter_list.rds")
-    message(paste("Saved progress at game", i))
-  }
-}
-
-# Combine results into a single dataframe
-starter_list_df <- rbindlist(starter_list, fill = TRUE)
-
-starter_list_df <- starter_list_df %>%
-  group_by(game_pk, game_date, home_plate_full_name, home_plate_id) %>%
-  summarize(
-    away_starter = first(fullName),
-    id1 = first(id),
-    teams.away.team.name = first(team),
-    teams.away.team.id = first(team_id),
-    home_starter = last(fullName),
-    id2 = last(id),
-    teams.home.team.name = last(team),
-    teams.home.team.id = last(team_id),
-    .groups = 'drop'
-  )
-
-# Join the processed data back to all_data
-all_data <- left_join(all_data, starter_list_df, by = c('game_pk', 
-                                                        "teams.home.team.name",
-                                                        "teams.away.team.name",
-                                                        "teams.home.team.id",
-                                                        "teams.away.team.id"))
-
-# Replace the specific columns only if they are NA in all_data
-all_data <- all_data %>%
-  mutate(
-    game_date.x = coalesce(game_date.y, game_date.x),
-    home_plate_full_name.x = coalesce(home_plate_full_name.y, home_plate_full_name.x),
-    home_plate_id.x = coalesce(home_plate_id.y, home_plate_id.x),
-    away_starter.x = coalesce(away_starter.y, away_starter.x),
-    id1.x = coalesce(id1.y, id1.x),
-    home_starter.x = coalesce(home_starter.y, home_starter.x),
-    id2.x = coalesce(id2.y, id2.x)) %>%
-  # Drop the .y columns
-  select(-ends_with(".y")) %>%
-  # Rename the .x columns to remove the .x suffix
-  rename_with(~ gsub("\\.x$", "", .), ends_with(".x"))
-
-# Save the updated dataframe
-saveRDS(all_data, file = "mlb_master_data.rds")
+saveRDS(all_data,  "mlb_master_data.rds")
 
 
 ######
@@ -461,7 +318,7 @@ need_id <- matched_df |>
 
 #trim to necessary columns
 need_id <- need_id |>
-  select(key_mlbam, playerid, 13:14)
+  select(key_mlbam, playerid, name_last, name_first)
 
 #using online resource that updates IDs
 data <- read_sheet('1JgczhD5VDQ1EiXqVG-blttZcVwbZd5_Ne_mefUGwJnk')
@@ -470,7 +327,7 @@ data <- read_sheet('1JgczhD5VDQ1EiXqVG-blttZcVwbZd5_Ne_mefUGwJnk')
 need_id <- left_join(need_id, data, by = c('key_mlbam' = 'MLBID'))
 
 need_id <- need_id |>
-  select(1, 13)
+  select(key_mlbam, IDFANGRAPHS)
 
 # if `IDFANGRAPHS` is a list
 if (is.list(need_id$IDFANGRAPHS)) {
