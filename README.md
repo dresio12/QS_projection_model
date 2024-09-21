@@ -28,6 +28,8 @@ cumulative_stats_for_QS_model:  Creates 5 RDS files
 
 probable_starters.R: creates the starter_list.rds file that holds the available information for the starters and umpire for games
 
+model_dataframe_pitcher_team_stats: (work in progress) assmembles final dataframes of pitcher and team stats
+
 QS_model_construction.R: (work in progress) configuring the datafram and generating the QS model
 
 daily_updates_for_QS_model: (work in progress) updates the dataframe and model to create the current day's predictions
