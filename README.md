@@ -32,7 +32,7 @@ model_dataframe_pitcher_team_stats: (work in progress) assmembles final datafram
 
 QS_model_construction.R: (work in progress) configuring the datafram and generating the QS model
 
-**PRELIM_MODEL.R: The preliminary model is complete, adn it predicts Quality Starts at the following rates: 57% true positive rate (1199/2102), 71.4% true negative rate (4445/6223). Now working on a more improved model.**
+**PRELIM_MODEL.R: The preliminary model is complete, and it predicts Quality Starts at the following rates: 57% true positive rate (1199/2102), 71.4% true negative rate (4445/6223). Now working on a more improved model.**
 
 daily_updates_for_QS_model: (work in progress) updates the dataframe and model to create the current day's predictions
 
