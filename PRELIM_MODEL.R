@@ -707,7 +707,6 @@ test_data <- test_data |>
 #accuracy test
 qs_diff_counts <- table(test_data$QSdiff)
 
-#the model correctly predicts a QS or not 67.39% of the time
 qs_diff_counts
 
 table(test_data$QS_recommendation)
